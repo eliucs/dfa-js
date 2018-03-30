@@ -1,12 +1,8 @@
 /**
- * Provides classes for DFA, NFA, and epsilon-NFA.
+ * Provides classes for DFA, NFA, and EpsilonNFA.
  * 
  * Author: Eric Liu (https://ericliu.ca)
  */
-
-const dfaFile = require('./dfa.json');
-const nfaFile = require('./nfa.json');
-const enfaFile = require('./epsilon-nfa.json');
 
 
 /**
@@ -411,11 +407,6 @@ class NFA {
     }
 };
 
-// - user defined part of the alphabet cannot include the special string <EPSILON>
-// - then <EPSILON> is added to the alphabet
-// - user defined part of state cannot include the special string <EPSILON>
-// - 
-
 
 /**
  * EpsilonNFA class.
@@ -470,7 +461,7 @@ class EpsilonNFA {
      * 
      * @param {string} currentState 
      */
-    collectEpsilon(currentState) {
+    __collectEpsilon(currentState) {
         let result = [];
 
         if (this.transitions[currentState] === undefined ||
@@ -480,7 +471,7 @@ class EpsilonNFA {
 
         this.transitions[currentState]['<EPSILON>'].forEach(x => {
             result.push(x);
-            result = result.concat(this.collectEpsilon(x));
+            result = result.concat(this.__collectEpsilon(x));
         });
 
         return result;
@@ -512,7 +503,7 @@ class EpsilonNFA {
                 result.push(y);
             });
 
-            result = result.concat(this.collectEpsilon(x));
+            result = result.concat(this.__collectEpsilon(x));
         });
 
         this.currentStates = result.filter(x => {
