@@ -69,6 +69,6 @@ Initialize as following:
 const { DFA, NFA, EpsilonNFA } = require('dfa-js');
 
 const dfa = new DFA(dfaFile);
-const nfa = new DFA(nfaFile);
-const enfa = new DFA(enfaFile);
+const nfa = new NFA(nfaFile);
+const enfa = new EpsilonNFA(enfaFile);
 ```
