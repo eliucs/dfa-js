@@ -8,6 +8,8 @@ The finite automata is initialized by passing the following object with the foll
 properties in the constructor:
 
 ```
+Example:
+
 {
     alphabet: ['a', 'b', 'c'],
     states: ['s1', 's2', 's3'],
