@@ -6,6 +6,7 @@
 
 const dfaFile = require('./dfa.json');
 const nfaFile = require('./nfa.json');
+const enfaFile = require('./epsilon-nfa.json');
 
 
 /**
@@ -36,8 +37,9 @@ const validateDFAProperties = (dfa) => {
  * no symbol is just pure whitespace.
  * 
  * @param {object} dfa 
+ * @param {Array} exclude
  */
-const validateAlphabet = (dfa) => {
+const validateAlphabet = (dfa, exclude) => {
     const result = new Set();
 
     dfa.alphabet.forEach(x => {
@@ -48,10 +50,18 @@ const validateAlphabet = (dfa) => {
             throw new Error(`duplicate symbol in alphabet ${x}.`);
         } else if (x.trim().length === 0) {
             throw new Error(`symbol in alphabet must not be solely whitespace.`);
+        } else if (exclude && exclude.includes(x)) {
+            throw new Error(`cannot include the symbol ${x}`);
         }
 
         result.add(x);
     });
+
+    if (exclude) {
+        exclude.forEach(x => {
+            result.add(x);
+        });
+    }
 
     return result;
 };
@@ -63,7 +73,7 @@ const validateAlphabet = (dfa) => {
  * 
  * @param {object} dfa 
  */
-const validateStates = (dfa) => {
+const validateStates = (dfa, exclude) => {
     const result = new Set();
 
     dfa.states.forEach(x => {
@@ -74,6 +84,8 @@ const validateStates = (dfa) => {
             throw new Error(`duplicate symbol in states ${x}.`);
         } else if (x.trim().length === 0) {
             throw new Error(`symbol in states must not be solely whitespace.`);
+        } else if (exclude && exclude.includes(x)) {
+            throw new Error(`cannot include the symbol ${x}.`);
         }
 
         result.add(x);
@@ -399,13 +411,118 @@ class NFA {
     }
 };
 
+// - user defined part of the alphabet cannot include the special string <EPSILON>
+// - then <EPSILON> is added to the alphabet
+// - user defined part of state cannot include the special string <EPSILON>
+// - 
 
-const log = console.log;
 
-const dfa = new DFA(dfaFile);
-const nfa = new NFA(nfaFile);
+/**
+ * EpsilonNFA class.
+ * 
+ * Note: the user defined part of the alphabet cannot include the special string
+ * <EPSILON>, neither can a state be called <EPSILON>.
+ */
+class EpsilonNFA {
+
+    /**
+     * Creates a new EpsilonNFA object.
+     * 
+     * @param {object} nfa 
+     */
+    constructor(nfa) {
+        validateDFAProperties(nfa);
+        this.alphabet = validateAlphabet(nfa, ['<EPSILON>']);
+        this.states = validateStates(nfa, ['<EPSILON>']);
+        validateInitialState(nfa, this.states);
+        this.initialState = nfa.initialState;
+        this.finalStates = validateFinalStates(nfa, this.states);
+        this.transitions = validateTransitionsNFA(nfa, this.states, this.alphabet);
+        this.currentStates = [this.initialState];
+    }
+
+    /**
+     * Returns the current states of the EpsilonNFA.
+     */
+    getCurrentStates() {
+        return this.currentStates;
+    }
+
+    /**
+     * Returns whether any one of the current states is an accepting state, i.e. if
+     * it is a final state.
+     */
+    isAcceptingState() {
+        return this.currentStates.reduce((prev, curr) => {
+            return prev && this.finalStates.has(curr);
+        }, true);
+    }
+
+    /**
+     * Returns whether the current EpsilonNFA is in an error state.
+     */
+    isErrorState() {
+        return this.currentStates.length === 0;
+    }
+
+    /**
+     * Recursively collect all epsilon reachable states from the current state.
+     * 
+     * @param {string} currentState 
+     */
+    collectEpsilon(currentState) {
+        let result = [];
+
+        if (this.transitions[currentState] === undefined ||
+            this.transitions[currentState]['<EPSILON>'] === undefined) {
+            return result;
+        }
+
+        this.transitions[currentState]['<EPSILON>'].forEach(x => {
+            result.push(x);
+            result = result.concat(this.collectEpsilon(x));
+        });
+
+        return result;
+    }
+
+    /**
+     * Transitions the current states of the EpsilonNFA given the input symbol.
+     * 
+     * @param {string} input 
+     */
+    transition(input) {
+        if (!this.alphabet.has(input)) {
+            throw new Error(`symbol ${input} is not a valid symbol of the alphabet`);
+        }
+
+        if (this.isErrorState()) {
+            return;
+        }
+
+        let result = [];
+        this.currentStates.forEach(x => {
+            if (this.transitions[x] === undefined ||
+                this.transitions[x][input] === undefined ||
+                this.transitions[x]['<EPSILON>'] === undefined) {
+                return result.push(new ErrorState());
+            } 
+
+            this.transitions[x][input].forEach(y => {
+                result.push(y);
+            });
+
+            result = result.concat(this.collectEpsilon(x));
+        });
+
+        this.currentStates = result.filter(x => {
+            return !(x instanceof ErrorState);
+        });
+    }
+};
 
 module.exports = {
     DFA,
-    NFA
+    NFA,
+    EpsilonNFA
 };

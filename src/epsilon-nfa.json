@@ -5,8 +5,11 @@
     "finalStates": ["zero", "0mod3"],
     "transitions": [
         ["start", "zero", "0"],
+        ["start", "1mod3", "<EPSILON>"],
         ["start", "1mod3", "1"],
         ["1mod3", "0mod3", "1"],
+        ["1mod3", "2mod3", "<EPSILON>"],
+        ["1mod3", "0mod3", "<EPSILON>"],
         ["1mod3", "2mod3", "0"],
         ["0mod3", "0mod3", "0"],
         ["0mod3", "1mod3", "1"],
