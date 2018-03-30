@@ -1,0 +1,15 @@
+{
+  "name": "dfa-js",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Eric Liu",
+  "description": "JavaScript library for building DFAs, NFAs, and epsilon-NFAs.",
+  "license": "MIT",
+  "scripts": {
+    "start": "node src/dfa.js",
+    "test": "nodemon src/dfa.js"
+  },
+  "devDependencies": {
+    "nodemon": "^1.17.2"
+  }
+}
