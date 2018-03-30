@@ -5,6 +5,7 @@
  */
 
 const dfaFile = require('./dfa.json');
+const nfaFile = require('./nfa.json');
 
 
 /**
@@ -136,6 +137,7 @@ const validateFinalStates = (dfa, states) => {
  * - the third element of the 3-tuple is the input symbol
  * - both the 'from' and 'to' states are included in the set of all states
  * - the input symbol is included in the set of all alphabet symbols
+ * - a particular state can only transiton to at most one state on an input symbol
  * 
  * @param {object} dfa 
  * @param {Set} states 
@@ -170,17 +172,75 @@ const validateTransitionsDFA = (dfa, states, alphabet) => {
                 `alphabet, but got ${x[2]}.`);
         }
 
-        if (typeof result[x[0]] !== 'undefined' && 
-            typeof result[x[0]][x[2]] !== 'undefined') {
+        if (result[x[0]] !== undefined && 
+            result[x[0]][x[2]] !== undefined) {
             throw new Error(`this transition results in non-deterministic behavior ` + 
                 `${x[0]} ${x[1]} ${x[2]}`);
         }
 
-        if (typeof result[x[0]] === 'undefined') {
+        if (result[x[0]] === undefined) {
             result[x[0]] = {};
         }
 
         result[x[0]][x[2]] = x[1];
+    });
+
+    return result;
+};
+
+
+/**
+ * Validates the transition function/mapping for a NFA such that:
+ * - all transitions are defined as 3-tuples of strings
+ * - the first element of the 3-tuple is the 'from' state
+ * - the second element of the 3-tuple is the 'to' state
+ * - the third element of the 3-tuple is the input symbol
+ * - both the 'from' and 'to' states are included in the set of all states
+ * - the input symbol is included in the set of all alphabet symbols
+ * - a particular state can transition to multiple states on an input symbol
+ * 
+ * @param {object} dfa 
+ * @param {Set} states 
+ * @param {Set} alphabet 
+ */
+const validateTransitionsNFA = (dfa, states, alphabet) => {
+    const result = {};
+
+    dfa.transitions.forEach(x => {
+        if (x.length !== 3) {
+            throw new Error(`transition must be a 3-tuple of strings, but got ${x}.`);
+        }
+
+        x.forEach((y, i) => {
+            if (typeof y !== 'string') {
+                throw new Error(`transition must be a 3-tuple of strings, ` + 
+                    `element ${i} is ${y} of type ${typeof y}.`);
+            }
+        });
+
+        // Element 0, 1 must be a valid state:
+        if (!states.has(x[0])) {
+            throw new Error(`first symbol of transition must be a valid state, ` + 
+                `but got ${x[0]}.`);
+        } else if (!states.has(x[1])) {
+            throw new Error(`second symbol of transition must be a valid state, ` + 
+                `but got ${x[1]}.`);
+        }
+        // Element 2 must be a valid symbol in the alphabet:
+        else if (!alphabet.has(x[2])) {
+            throw new Error(`third symbol of transition must be a valid symbol in the ` + 
+                `alphabet, but got ${x[2]}.`);
+        }
+
+        if (result[x[0]] === undefined) {
+            result[x[0]] = {};
+        }
+
+        if (result[x[0]][x[2]] === undefined) {
+            result[x[0]][x[2]] = [];
+        }
+
+        result[x[0]][x[2]].push(x[1]);
     });
 
     return result;
@@ -244,15 +304,15 @@ class DFA {
      */
     transition(input) {
         if (!this.alphabet.has(input)) {
-            throw new Error(`symbol ${input} is not a valid part of the alphabet`);
+            throw new Error(`symbol ${input} is not a valid symbol of the alphabet`);
         }
 
-        if (this.isError()) {
+        if (this.isErrorState()) {
             return;
         }
 
-        if (typeof this.transitions[this.currentState] === 'undefined' ||
-            typeof this.transitions[this.currentState][input] === 'undefined') {
+        if (this.transitions[this.currentState] === undefined ||
+            this.transitions[this.currentState][input] === undefined) {
             this.currentState = new ErrorState();
             this.isInErrorState = true;
         } else {
@@ -262,13 +322,90 @@ class DFA {
 };
 
 
+/**
+ * NFA class.
+ */
+class NFA {
 
+    /**
+     * Creates a new NFA object.
+     * 
+     * @param {object} nfa 
+     */
+    constructor(nfa) {
+        validateDFAProperties(nfa);
+        this.alphabet = validateAlphabet(nfa);
+        this.states = validateStates(nfa);
+        validateInitialState(nfa, this.states);
+        this.initialState = nfa.initialState;
+        this.finalStates = validateFinalStates(nfa, this.states);
+        this.transitions = validateTransitionsNFA(nfa, this.states, this.alphabet);
+        this.currentStates = [this.initialState];
+    }
+
+    /**
+     * Returns the current states of the NFA.
+     */
+    getCurrentStates() {
+        return this.currentStates;
+    }
+
+    /**
+     * Returns whether any one of the current states is an accepting state, i.e. if
+     * it is a final state.
+     */
+    isAcceptingState() {
+        return this.currentStates.reduce((prev, curr) => {
+            return prev && this.finalStates.has(curr);
+        }, true);
+    }
+
+    /**
+     * Returns whether the current NFA is in an error state.
+     */
+    isErrorState() {
+        return this.currentStates.length === 0;
+    }
+
+    /**
+     * Transitions the current states of the NFA given the input symbol.
+     * 
+     * @param {string} input 
+     */
+    transition(input) {
+        if (!this.alphabet.has(input)) {
+            throw new Error(`symbol ${input} is not a valid symbol of the alphabet`);
+        }
+
+        if (this.isErrorState()) {
+            return;
+        }
+
+        const result = [];
+        this.currentStates.forEach(x => {
+            if (this.transitions[x] === undefined ||
+                this.transitions[x][input] === undefined) {
+                return result.push(new ErrorState());
+            } 
+
+            this.transitions[x][input].forEach(y => {
+                result.push(y);
+            });
+        });
+
+        this.currentStates = result.filter(x => {
+            return !(x instanceof ErrorState);
+        });
+    }
+};
+
+
+const log = console.log;
 
 const dfa = new DFA(dfaFile);
-
-
-
+const nfa = new NFA(nfaFile);
 
 module.exports = {
-    DFA
+    DFA,
+    NFA
 };
